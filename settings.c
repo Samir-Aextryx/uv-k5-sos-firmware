@@ -24,6 +24,9 @@
 #include "driver/bk4819.h"
 #include "driver/eeprom.h"
 #include "misc.h"
+#ifdef ENABLE_QUICKMENU
+    #include "app/quickmenu.h"
+#endif
 #include "settings.h"
 #include "ui/menu.h"
 
@@ -308,6 +311,9 @@ void SETTINGS_InitEEPROM(void)
         #endif
     #endif
     gSetting_backlight_on_tx_rx = (Data[7] >> 6) & 3u;
+#if defined(ENABLE_QUICKMENU) && defined(ENABLE_FEAT_F4HWN)
+    gQM_NoiseFilter = !!(Data[7] & (1u << 5));   // Bit 5 nutzt F4HWN nicht (AM-Fix ist immer an)
+#endif
 
     if (!gEeprom.VFO_OPEN)
     {
@@ -774,6 +780,9 @@ void SETTINGS_SaveSettings(void)
         #endif
     #endif
     State[7] = (State[7] & ~(3u << 6)) | ((gSetting_backlight_on_tx_rx & 3u) << 6);
+#if defined(ENABLE_QUICKMENU) && defined(ENABLE_FEAT_F4HWN)
+    if (!gQM_NoiseFilter)            State[7] &= ~(1u << 5);
+#endif
 
     EEPROM_WriteBuffer(0x0F40, State);
 

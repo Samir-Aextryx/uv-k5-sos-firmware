@@ -34,6 +34,10 @@ enum GUI_DisplayType_t
     DISPLAY_AIRCOPY,
 #endif
 
+#ifdef ENABLE_QUICKMENU
+    DISPLAY_QUICKMENU,
+#endif
+
 #ifdef ENABLE_REGA
     DISPLAY_REGA,
 #endif
@@ -43,6 +47,13 @@ enum GUI_DisplayType_t
 };
 
 typedef enum GUI_DisplayType_t GUI_DisplayType_t;
+
+// Menue-Bildschirme werden bei Stromsparen/Empfang nicht automatisch geschlossen
+#ifdef ENABLE_QUICKMENU
+    #define GUI_IS_MENU_SCREEN() (gScreenToDisplay == DISPLAY_MENU || gScreenToDisplay == DISPLAY_QUICKMENU)
+#else
+    #define GUI_IS_MENU_SCREEN() (gScreenToDisplay == DISPLAY_MENU)
+#endif
 
 extern GUI_DisplayType_t gScreenToDisplay;
 extern GUI_DisplayType_t gRequestDisplayScreen;

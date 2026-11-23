@@ -34,6 +34,10 @@
     #include "app/rega.h"
 #endif
 #include "ui/inputbox.h"
+#ifdef ENABLE_QUICKMENU
+    #include "app/quickmenu.h"
+    #include "ui/quickmenu.h"
+#endif
 #include "ui/main.h"
 #include "ui/menu.h"
 #include "ui/scanner.h"
@@ -49,16 +53,31 @@ bool              gAskToDelete;
 
 
 void (*UI_DisplayFunctions[])(void) = {
+#ifdef ENABLE_QUICKMENU
+    [DISPLAY_MAIN] = &UI_DisplayQuickMenu,   // SOS-Edition: kein Frequenz-Bildschirm
+#else
     [DISPLAY_MAIN] = &UI_DisplayMain,
+#endif
     [DISPLAY_MENU] = &UI_DisplayMenu,
+#ifdef ENABLE_QUICKMENU
+    // SOS-Edition: Radio und Suche laufen im Menue, die alten Bildschirme fallen weg
+    [DISPLAY_SCANNER] = &UI_DisplayQuickMenu,
+  #ifdef ENABLE_FMRADIO
+    [DISPLAY_FM] = &UI_DisplayQuickMenu,
+  #endif
+#else
     [DISPLAY_SCANNER] = &UI_DisplayScanner,
-
-#ifdef ENABLE_FMRADIO
+  #ifdef ENABLE_FMRADIO
     [DISPLAY_FM] = &UI_DisplayFM,
+  #endif
 #endif
 
 #ifdef ENABLE_AIRCOPY
     [DISPLAY_AIRCOPY] = &UI_DisplayAircopy,
+#endif
+
+#ifdef ENABLE_QUICKMENU
+    [DISPLAY_QUICKMENU] = &UI_DisplayQuickMenu,
 #endif
 
 #ifdef ENABLE_REGA
@@ -79,6 +98,19 @@ void GUI_SelectNextDisplay(GUI_DisplayType_t Display)
 {
     if (Display == DISPLAY_INVALID)
         return;
+
+#ifdef ENABLE_QUICKMENU
+    // SOS-Edition: nie der Frequenz-, Radio- oder Scanner-Bildschirm, immer das Schnellwahl-Menue
+  #ifdef ENABLE_FMRADIO
+    if (Display == DISPLAY_FM && gQM_Page != QM_PAGE_RADIO) {   // Radio wurde eingeschaltet: Radio-Seite
+        gQM_Page      = QM_PAGE_RADIO;
+        gQM_Category  = 0;
+        gScanStateDir = SCAN_OFF;
+    }
+  #endif
+    if (Display == DISPLAY_MAIN || Display == DISPLAY_FM || Display == DISPLAY_SCANNER)
+        Display = DISPLAY_QUICKMENU;
+#endif
 
     if (gScreenToDisplay != Display)
     {

@@ -65,16 +65,50 @@ void UI_GenerateChannelStringEx(char *pString, const bool bShowPrefix, const uin
     }
 }
 
+// Umlaute kommen als UTF-8 (0xC3 + Folgebyte). Nummer 0..6 = ae oe ue AE OE UE ss, sonst -1
+int UI_Umlaut(uint8_t next)
+{
+    static const uint8_t utf8[7] = {0xA4, 0xB6, 0xBC, 0x84, 0x96, 0x9C, 0x9F};
+    for (int k = 0; k < 7; k++)
+        if (utf8[k] == next)
+            return k;
+    return -1;
+}
+
+// Laenge in Zeichen (ein Umlaut = 2 Bytes, aber 1 Zeichen)
+size_t UI_StrLen(const char *pString)
+{
+    size_t n = 0;
+    for (const uint8_t *p = (const uint8_t *)pString; *p; p++)
+        if ((*p & 0xC0) != 0x80)
+            n++;
+    return n;
+}
+
 void UI_PrintStringBuffer(const char *pString, uint8_t * buffer, uint32_t char_width, const uint8_t *font)
 {
-    const size_t Length = strlen(pString);
     const unsigned int char_spacing = char_width + 1;
-    for (size_t i = 0; i < Length; i++) {
-        const unsigned int index = pString[i] - ' ' - 1;
-        if (pString[i] > ' ' && pString[i] < 127) {
-            const uint32_t offset = i * char_spacing + 1;
-            memcpy(buffer + offset, font + index * char_width, char_width);
+#ifdef ENABLE_SMALL_BOLD
+    const uint8_t *uml = (font == (const uint8_t *)gFontSmallBold) ? &gFontSmallBoldUml[0][0] : &gFontSmallUml[0][0];
+#else
+    const uint8_t *uml = &gFontSmallUml[0][0];
+#endif
+    unsigned int i = 0;
+    for (const uint8_t *p = (const uint8_t *)pString; *p; p++) {
+        const uint8_t c = *p;
+        const uint8_t *glyph = NULL;
+        if ((c & 0xC0) == 0x80)
+            continue;                          // Folgebyte eines Umlauts
+        if (c > ' ' && c < 127)
+            glyph = font + (c - ' ' - 1) * char_width;
+        else if (c == 0xC3 && char_width == 6) {
+            const int k = UI_Umlaut(p[1]);
+            if (k >= 0)
+                glyph = uml + k * 6;
         }
+        if (glyph)
+            memcpy(buffer + i * char_spacing + 1, glyph, char_width);
+        i++;
     }
 }
 
@@ -100,7 +134,7 @@ void UI_PrintString(const char *pString, uint8_t Start, uint8_t End, uint8_t Lin
 
 void UI_PrintStringSmall(const char *pString, uint8_t Start, uint8_t End, uint8_t Line, uint8_t char_width, const uint8_t *font)
 {
-    const size_t Length = strlen(pString);
+    const size_t Length = UI_StrLen(pString);
     const unsigned int char_spacing = char_width + 1;
 
     if (End > Start) {
@@ -277,9 +311,17 @@ static void sort(int16_t *a, int16_t *b)
       const uint8_t *p = (const uint8_t *)pString;
 
       while ((c = *p++) && c != '\0') {
-        c -= 0x20;
+        const uint8_t *glyph;
+        if ((c & 0xC0) == 0x80)
+          continue;                            // Folgebyte eines Umlauts
+        if (c == 0xC3 && UI_Umlaut(*p) >= 0)
+          glyph = gFont3x5Uml[UI_Umlaut(*p)];
+        else if (c >= 0x20 && c < 0x80)
+          glyph = gFont3x5[c - 0x20];
+        else
+          glyph = gFont3x5[0];
         for (int i = 0; i < 3; ++i) {
-          pixels = gFont3x5[c][i];
+          pixels = glyph[i];
           for (int j = 0; j < 6; ++j) {
             if (pixels & 1) {
               if (statusbar)
@@ -295,6 +337,78 @@ static void sort(int16_t *a, int16_t *b)
     }
 #endif
     
+// Zeile von x1 bis x2 invertieren und die Ecken abrunden (Auswahl-Balken)
+void UI_InvertBar(uint8_t line, uint8_t x1, uint8_t x2)
+{
+    for (uint8_t x = x1; x <= x2; x++)
+        gFrameBuffer[line][x] ^= 0xFF;
+    gFrameBuffer[line][x1] &= 0x7E;
+    gFrameBuffer[line][x2] &= 0x7E;
+}
+
+#if defined(ENABLE_QUICKMENU) || defined(ENABLE_SAMIR_LOGO)
+// Die vier Eckpunkte eines Rechtecks loeschen (runde Ecken)
+static void ClearCorners(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2)
+{
+    UI_DrawPixelBuffer(gFrameBuffer, x1, y1, false);
+    UI_DrawPixelBuffer(gFrameBuffer, x2, y1, false);
+    UI_DrawPixelBuffer(gFrameBuffer, x1, y2, false);
+    UI_DrawPixelBuffer(gFrameBuffer, x2, y2, false);
+}
+
+// Rechteck invertieren, mit runden Ecken (gewaehlte Kachel, Leuchtfeld)
+void UI_InvertRect(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2)
+{
+    for (uint8_t x = x1; x <= x2; x++)
+        for (uint8_t y = y1; y <= y2; y++)
+            gFrameBuffer[y >> 3][x] ^= 1u << (y & 7);
+    ClearCorners(x1, y1, x2, y2);
+}
+
+// Rahmen mit runden Ecken
+void UI_DrawRoundRect(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2)
+{
+    UI_DrawRectangleBuffer(gFrameBuffer, x1, y1, x2, y2, true);
+    ClearCorners(x1, y1, x2, y2);
+}
+
+// eine Spalte der Bitmap als Zahl (Bit 0 = oben), ausserhalb = leer
+static uint16_t BitmapColumn(const uint8_t *bmp, uint8_t w, uint8_t h, int8_t c)
+{
+    if (c < 0 || c >= w)
+        return 0;
+    return bmp[c] | (h > 8 ? bmp[c + w] << 8 : 0);
+}
+
+// Bitmap (spaltenweise, Bit 0 = oben, je 8 Zeilen ein Block von w Bytes)
+// doppelt so gross zeichnen. Schraegen werden dabei geglaettet (Scale2x),
+// damit grosse Buchstaben und Symbole nicht treppig aussehen.
+void UI_DrawScale2x(const uint8_t *bmp, uint8_t w, uint8_t h, uint8_t x, uint8_t y, bool black)
+{
+    for (int8_t c = 0; c < w; c++) {
+        // um 1 verschoben: Bit r+1 = Zeile r, damit Zeile -1 und h leer sind
+        const uint32_t L = BitmapColumn(bmp, w, h, c - 1) << 1;
+        const uint32_t M = BitmapColumn(bmp, w, h, c) << 1;
+        const uint32_t R = BitmapColumn(bmp, w, h, c + 1) << 1;
+        for (uint8_t r = 0; r < h; r++) {
+            const bool P = (M >> (r + 1)) & 1, A = (M >> r) & 1, D = (M >> (r + 2)) & 1;
+            const bool B = (R >> (r + 1)) & 1, C = (L >> (r + 1)) & 1;
+            const bool e[4] = {
+                (C == A && C != D && A != B) ? A : P,
+                (A == B && A != C && B != D) ? B : P,
+                (D == C && D != B && C != A) ? C : P,
+                (B == D && B != A && D != C) ? D : P,
+            };
+            for (uint8_t d = 0; d < 4; d++) {
+                const uint8_t px = x + 2 * c + (d & 1), py = y + 2 * r + (d >> 1);
+                if (e[d] && px < 128 && py < 56)   // ausserhalb: weglassen
+                    UI_DrawPixelBuffer(gFrameBuffer, px, py, black);
+            }
+        }
+    }
+}
+#endif
+
 void UI_DrawLineBuffer(uint8_t (*buffer)[128], int16_t x1, int16_t y1, int16_t x2, int16_t y2, bool black)
 {
     if(x2==x1) {

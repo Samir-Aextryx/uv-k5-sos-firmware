@@ -27,6 +27,9 @@
 #include "ui/status.h"
 #include "version.h"
 #include "bitmaps.h"
+#ifdef ENABLE_SAMIR_LOGO
+    #include "font.h"
+#endif
 
 #ifdef ENABLE_FEAT_F4HWN_SCREENSHOT
     #include "screenshot.h"
@@ -46,6 +49,66 @@ void UI_DisplayReleaseKeys(void)
     ST7565_BlitStatusLine();  // blank status line
     ST7565_BlitFullScreen();
 }
+
+#ifdef ENABLE_SAMIR_LOGO
+// Grosses "SAMIR": Zeichen aus gFontBig (7x16) doppelt vergroessert und
+// geglaettet = 14x32. y darf "negativ" sein (0 - n): oben wird abgeschnitten.
+static void DrawBigLetter(char c, uint8_t x, uint8_t y)
+{
+    UI_DrawScale2x(gFontBig[c - ' ' - 1], 7, 16, x, y, true);
+}
+
+// Funkwellen: n Kreisboegen (+-45 Grad) um (cx, cy), dir = +1 rechts, -1 links
+static void DrawWaves(uint8_t cx, uint8_t cy, int8_t dir, uint8_t n)
+{
+    for (int8_t rad = 4; rad <= 4 * n; rad += 4) {
+        int8_t x = rad, y = 0, err = 1 - rad;
+        while (x >= y) {
+            UI_DrawPixelBuffer(gFrameBuffer, cx + dir * x, cy + y, true);
+            UI_DrawPixelBuffer(gFrameBuffer, cx + dir * x, cy - y, true);
+            y++;
+            if (err < 0)
+                err += 2 * y + 1;
+            else {
+                x--;
+                err += 2 * (y - x) + 1;
+            }
+        }
+    }
+}
+
+// Startbild (fest, ohne Animation): Rahmen, SAMIR, Funkwellen,
+// "SOS EDITION", Version und Akku
+static void DrawSamirLogo(void)
+{
+    char str[24];
+
+    UI_DisplayClear();
+    UI_DrawRoundRect(0, 0, 127, 55);
+
+    static const char name[] = "SAMIR";
+    for (uint8_t i = 0; i < 5; i++)
+        DrawBigLetter(name[i], 25 + 16 * i, 0);
+
+    DrawWaves(19,  15, -1, 3);
+    DrawWaves(108, 15,  1, 3);
+
+    sprintf(str, "%s EDITION", Edition);
+    UI_PrintStringSmallBold(str, 0, 127, 4);
+    const uint8_t half = strlen(str) * 7 / 2 + 4;
+    UI_InvertBar(4, 64 - half, 64 + half);
+
+    const unsigned pct = BATTERY_VoltsToPercent(gBatteryVoltageAverage);
+    GUI_DisplaySmallest(Version, 4, 47, false, true);
+    sprintf(str, "%u%%", pct);
+    const uint8_t l = 4 * strlen(str);
+    GUI_DisplaySmallest(str, 123 - l, 47, false, true);
+    UI_DrawRectangleBuffer(gFrameBuffer, 98 - l, 46, 110 - l, 51, true);
+    UI_DrawLineBuffer(gFrameBuffer, 111 - l, 48, 111 - l, 49, true);
+    if (pct >= 10)
+        UI_InvertRect(99 - l, 47, 98 - l + pct / 10, 50);
+}
+#endif
 
 void UI_DisplayWelcome(void)
 {
@@ -72,6 +135,11 @@ void UI_DisplayWelcome(void)
         ST7565_FillScreen(0xFF);
 #endif
     } else {
+#ifdef ENABLE_SAMIR_LOGO
+        DrawSamirLogo();
+        ST7565_BlitFullScreen();
+        return;
+#endif
         memset(WelcomeString0, 0, sizeof(WelcomeString0));
         memset(WelcomeString1, 0, sizeof(WelcomeString1));
 

@@ -42,6 +42,10 @@
 
 #include "app/app.h"
 #include "app/dtmf.h"
+#ifdef ENABLE_QUICKMENU
+    #include "app/quickmenu.h"
+    #include "ui/ui.h"
+#endif
 #include "bsp/dp32g030/gpio.h"
 #include "bsp/dp32g030/syscon.h"
 
@@ -88,7 +92,11 @@ void Main(void)
     SYSTICK_Init();
     BOARD_Init();
 
+#ifdef ENABLE_SAMIR_LOGO
+    boot_counter_10ms = 0;     // SOS-Edition: kein Warten, sofort ins Menue
+#else
     boot_counter_10ms = 250;   // 2.5 sec
+#endif
 
 #ifdef ENABLE_UART
     UART_Init();
@@ -364,6 +372,12 @@ void Main(void)
         #endif
     #endif
         
+#ifdef ENABLE_QUICKMENU
+    // beim Einschalten direkt das Kachel-Menue zeigen (nicht im Lade-/Sondermodus)
+    if (!gReducedService && gScreenToDisplay == DISPLAY_MAIN)
+        ACTION_QuickMenu();
+#endif
+
     while (true) {
         APP_Update();
 

@@ -33,6 +33,9 @@
 #include "functions.h"
 #include "helper/battery.h"
 #include "misc.h"
+#ifdef ENABLE_QUICKMENU
+    #include "app/quickmenu.h"
+#endif
 #include "radio.h"
 #include "settings.h"
 #include "ui/menu.h"
@@ -699,6 +702,16 @@ void RADIO_SetupRegisters(bool switchToForeground)
 
     BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2_GREEN, false);
 
+#ifdef ENABLE_QUICKMENU
+    // Rauschfilter: AM (Flugfunk) mit schmalem Filter, das laesst viel weniger
+    // Rauschen durch. Bei FM wird das Filter bei schwachen Signalen schmaler.
+    const bool noiseFilterFM = gQM_NoiseFilter && gRxVfo->Modulation != MODULATION_AM;
+    if (gQM_NoiseFilter && gRxVfo->Modulation == MODULATION_AM)
+        Bandwidth = BK4819_FILTER_BW_NARROW;
+#else
+    const bool noiseFilterFM = false;
+#endif
+
     switch (Bandwidth)
     {
         default:
@@ -709,7 +722,7 @@ void RADIO_SetupRegisters(bool switchToForeground)
         case BK4819_FILTER_BW_NARROWER:
             #ifdef ENABLE_AM_FIX
 //              BK4819_SetFilterBandwidth(Bandwidth, gRxVfo->Modulation == MODULATION_AM && gSetting_AM_fix);
-                BK4819_SetFilterBandwidth(Bandwidth, true);
+                BK4819_SetFilterBandwidth(Bandwidth, !noiseFilterFM);
             #else
                 BK4819_SetFilterBandwidth(Bandwidth, false);
             #endif

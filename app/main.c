@@ -25,6 +25,9 @@
 #endif
 #include "app/generic.h"
 #include "app/main.h"
+#ifdef ENABLE_QUICKMENU
+    #include "app/quickmenu.h"
+#endif
 #include "app/scanner.h"
 
 #ifdef ENABLE_SPECTRUM
@@ -656,6 +659,13 @@ static void MAIN_Key_EXIT(bool bKeyPressed, bool bKeyHeld)
             gRequestDisplayScreen = DISPLAY_MAIN;
             gBeepToPlay           = BEEP_1KHZ_60MS_OPTIONAL;
         }
+#ifdef ENABLE_QUICKMENU
+        else if (gScanStateDir == SCAN_OFF)
+        {   // nichts zu loeschen: Schnellwahl-Menue oeffnen
+            gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
+            ACTION_QuickMenu();
+        }
+#endif
     }
 }
 

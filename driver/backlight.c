@@ -103,7 +103,7 @@ void BACKLIGHT_TurnOn(void)
 
 #ifdef ENABLE_FEAT_F4HWN
     if(gK5startup == true) {
-        #if defined(ENABLE_FMRADIO) && defined(ENABLE_SPECTRUM)
+        #if (defined(ENABLE_FMRADIO) && defined(ENABLE_SPECTRUM)) || defined(ENABLE_SAMIR_LOGO)   // SOS-Edition: sofort hell
             BACKLIGHT_SetBrightness(gEeprom.BACKLIGHT_MAX);
         #else
             for(uint8_t i = 0; i <= gEeprom.BACKLIGHT_MAX; i++)

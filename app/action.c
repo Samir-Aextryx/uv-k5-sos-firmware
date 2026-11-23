@@ -29,6 +29,9 @@
     #include "app/fm.h"
 #endif
 #include "app/scanner.h"
+#ifdef ENABLE_QUICKMENU
+    #include "app/quickmenu.h"
+#endif
 #include "audio.h"
 #include "bsp/dp32g030/gpio.h"
 #ifdef ENABLE_FMRADIO
@@ -125,6 +128,9 @@ void (*action_opt_table[])(void) = {
 #ifdef ENABLE_REGA
     [ACTION_OPT_REGA_ALARM] = &ACTION_RegaAlarm,
     [ACTION_OPT_REGA_TEST] = &ACTION_RegaTest,
+#endif
+#ifdef ENABLE_QUICKMENU
+    [ACTION_OPT_QUICKMENU] = &ACTION_QuickMenu,
 #endif
 };
 
@@ -386,6 +392,11 @@ void ACTION_FM(void)
 
 static void ACTION_Scan_FM(bool bRestart)
 {
+#ifdef ENABLE_QUICKMENU
+    (void)bRestart;
+    QUICKMENU_FmSeek(1);   // SOS-Edition: einfache Sendersuche des Menues
+}
+#else
     if (FUNCTION_IsRx())
         return;
 
@@ -423,6 +434,7 @@ static void ACTION_Scan_FM(bool bRestart)
 #endif
 
 }
+#endif
 
 #endif
 
@@ -452,7 +464,7 @@ static void ACTION_AlarmOr1750(const bool b1750)
 
     gFlagPrepareTX = gAlarmState != ALARM_STATE_OFF;
 
-    if (gScreenToDisplay != DISPLAY_MENU)     // 1of11 .. don't close the menu
+    if (!GUI_IS_MENU_SCREEN())     // 1of11 .. don't close the menu
         gRequestDisplayScreen = DISPLAY_MAIN;
 }
 

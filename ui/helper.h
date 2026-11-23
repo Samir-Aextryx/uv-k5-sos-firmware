@@ -19,8 +19,11 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 void UI_GenerateChannelString(char *pString, const uint8_t Channel);
+int UI_Umlaut(uint8_t next);
+size_t UI_StrLen(const char *pString);
 void UI_GenerateChannelStringEx(char *pString, const bool bShowPrefix, const uint8_t ChannelNumber);
 void UI_PrintString(const char *pString, uint8_t Start, uint8_t End, uint8_t Line, uint8_t Width);
 void UI_PrintStringSmallNormal(const char *pString, uint8_t Start, uint8_t End, uint8_t Line);
@@ -42,5 +45,11 @@ void UI_DrawLineBuffer(uint8_t (*buffer)[128], int16_t x1, int16_t y1, int16_t x
 void UI_DrawRectangleBuffer(uint8_t (*buffer)[128], int16_t x1, int16_t y1, int16_t x2, int16_t y2, bool black);
 
 void UI_DisplayClear();
+void UI_InvertBar(uint8_t line, uint8_t x1, uint8_t x2);
+#if defined(ENABLE_QUICKMENU) || defined(ENABLE_SAMIR_LOGO)
+void UI_InvertRect(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2);
+void UI_DrawRoundRect(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2);
+void UI_DrawScale2x(const uint8_t *bmp, uint8_t w, uint8_t h, uint8_t x, uint8_t y, bool black);
+#endif
 
 #endif

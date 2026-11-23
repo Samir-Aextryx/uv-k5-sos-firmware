@@ -465,6 +465,9 @@ const t_sidefunction gSubMenu_SIDEFUNCTIONS[] =
         {"REMOVE\nOFFSET",  ACTION_OPT_REMOVE_OFFSET},
     #endif
 #endif
+#ifdef ENABLE_QUICKMENU
+    {"SCHNELL\nWAHL",   ACTION_OPT_QUICKMENU},
+#endif
 };
 
 const uint8_t gSubMenu_SIDEFUNCTIONS_size = ARRAY_SIZE(gSubMenu_SIDEFUNCTIONS);

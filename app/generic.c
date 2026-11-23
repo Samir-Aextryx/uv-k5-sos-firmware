@@ -25,6 +25,9 @@
 #endif
 
 #include "app/generic.h"
+#ifdef ENABLE_QUICKMENU
+    #include "app/quickmenu.h"
+#endif
 #include "app/menu.h"
 #include "app/scanner.h"
 #include "audio.h"
@@ -122,7 +125,7 @@ void GENERIC_Key_PTT(bool bKeyPressed)
 #endif
             RADIO_SetVfoState(VFO_STATE_NORMAL);
 
-            if (gScreenToDisplay != DISPLAY_MENU)     // 1of11 .. don't close the menu
+            if (!GUI_IS_MENU_SCREEN())     // 1of11 .. don't close the menu
                 gRequestDisplayScreen = DISPLAY_MAIN;
         }
 
@@ -146,7 +149,11 @@ void GENERIC_Key_PTT(bool bKeyPressed)
 
 #ifdef ENABLE_FMRADIO
     if (gFM_ScanState != FM_SCAN_OFF) { // FM radio is scanning .. stop
+  #ifdef ENABLE_QUICKMENU
+        QUICKMENU_FmSeek(0);
+  #else
         FM_PlayAndUpdate();
+  #endif
 #ifdef ENABLE_VOICE
         gAnotherVoiceID = VOICE_ID_SCANNING_STOP;
 #endif
@@ -165,7 +172,7 @@ void GENERIC_Key_PTT(bool bKeyPressed)
         return;
     }
 
-    if (gScreenToDisplay != DISPLAY_MENU)     // 1of11 .. don't close the menu
+    if (!GUI_IS_MENU_SCREEN())     // 1of11 .. don't close the menu
         gRequestDisplayScreen = DISPLAY_MAIN;
 
 

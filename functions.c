@@ -17,6 +17,9 @@
 #include <string.h>
 
 #include "app/dtmf.h"
+#ifdef ENABLE_QUICKMENU
+    #include "app/quickmenu.h"
+#endif
 #if defined(ENABLE_FMRADIO)
     #include "app/fm.h"
 #endif
@@ -143,7 +146,7 @@ void FUNCTION_PowerSave() {
 
     gUpdateStatus = true;
 
-    if (gScreenToDisplay != DISPLAY_MENU)     // 1of11 .. don't close the menu
+    if (!GUI_IS_MENU_SCREEN())     // 1of11 .. don't close the menu
         GUI_SelectNextDisplay(DISPLAY_MAIN);
 }
 
@@ -207,7 +210,11 @@ void FUNCTION_Transmit()
     if (gAlarmState != ALARM_STATE_OFF) {
         #ifdef ENABLE_TX1750
         if (gAlarmState == ALARM_STATE_TX1750)
+        #ifdef ENABLE_QUICKMENU
+            BK4819_TransmitTone(true, gQM_Sos ? 800 : 1750);   // SOS-Ruf: 800-Hz-Morseton
+        #else
             BK4819_TransmitTone(true, 1750);
+        #endif
         #endif
 
         #ifdef ENABLE_ALARM

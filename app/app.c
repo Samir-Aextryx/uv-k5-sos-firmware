@@ -20,6 +20,19 @@
 
 #include "am_fix.h"
 #include "app/action.h"
+#ifdef ENABLE_QUICKMENU
+    #include "app/quickmenu.h"
+    // Schnellwahl bleibt offen, wenn sich der VFO aendert (z. B. beim SOS-Ruf)
+    #define QM_KEEP_SCREEN()  (gScreenToDisplay == DISPLAY_QUICKMENU)
+    // in der Schnellwahl darf Strom gespart werden, solange kein SOS-Ruf laeuft
+    #define QM_POWERSAVE_OK() (gScreenToDisplay == DISPLAY_QUICKMENU && gQM_Sos == QM_SOS_OFF && !gQM_Whistle)
+    // waehrend die Notfall-Pfeife laeuft, sperren sich die Tasten nicht von selbst
+    #define QM_NO_AUTOLOCK()  gQM_Whistle
+#else
+    #define QM_KEEP_SCREEN()  false
+    #define QM_POWERSAVE_OK() false
+    #define QM_NO_AUTOLOCK()  false
+#endif
 
 #ifdef ENABLE_AIRCOPY
     #include "app/aircopy.h"
@@ -87,16 +100,31 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld);
 
 
 void (*ProcessKeysFunctions[])(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld) = {
+#ifdef ENABLE_QUICKMENU
+    [DISPLAY_MAIN] = &QUICKMENU_ProcessKeys,   // SOS-Edition: kein Frequenz-Bildschirm
+#else
     [DISPLAY_MAIN] = &MAIN_ProcessKeys,
+#endif
     [DISPLAY_MENU] = &MENU_ProcessKeys,
+#ifdef ENABLE_QUICKMENU
+    // SOS-Edition: diese Bildschirme gibt es nicht mehr (siehe ui/ui.c)
+    [DISPLAY_SCANNER] = &QUICKMENU_ProcessKeys,
+  #ifdef ENABLE_FMRADIO
+    [DISPLAY_FM] = &QUICKMENU_ProcessKeys,
+  #endif
+#else
     [DISPLAY_SCANNER] = &SCANNER_ProcessKeys,
-
-#ifdef ENABLE_FMRADIO
+  #ifdef ENABLE_FMRADIO
     [DISPLAY_FM] = &FM_ProcessKeys,
+  #endif
 #endif
 
 #ifdef ENABLE_AIRCOPY
     [DISPLAY_AIRCOPY] = &AIRCOPY_ProcessKeys,
+#endif
+
+#ifdef ENABLE_QUICKMENU
+    [DISPLAY_QUICKMENU] = &QUICKMENU_ProcessKeys,
 #endif
 };
 
@@ -111,6 +139,11 @@ static void CheckForIncoming(void)
 {
     if (!g_SquelchLost)
         return;          // squelch is closed
+
+#ifdef ENABLE_QUICKMENU
+    if (!QUICKMENU_RxAllowed())
+        return;          // Hoer-Seite geschlossen: nichts mehr hoeren
+#endif
 
     // squelch is open
 
@@ -575,7 +608,7 @@ void APP_StartListening(FUNCTION_Type_t function)
     if (function == FUNCTION_MONITOR)
 #endif
     {   // squelch is disabled
-        if (gScreenToDisplay != DISPLAY_MENU)     // 1of11 .. don't close the menu
+        if (!GUI_IS_MENU_SCREEN())     // 1of11 .. don't close the menu
             GUI_SelectNextDisplay(DISPLAY_MAIN);
     }
     else
@@ -1053,7 +1086,7 @@ void APP_Update(void)
         gScheduleDualWatch = false;
     }
 
-#ifdef ENABLE_FMRADIO
+#if defined(ENABLE_FMRADIO) && !defined(ENABLE_QUICKMENU)   // SOS-Edition: Suche laeuft im Menue
     if (gScheduleFM && gFM_ScanState != FM_SCAN_OFF && !FUNCTION_IsRx()) {
         // switch to FM radio mode
         FM_Play();
@@ -1072,7 +1105,7 @@ void APP_Update(void)
             || gEeprom.BATTERY_SAVE == 0
             || gScanStateDir != SCAN_OFF
             || gCssBackgroundScan
-            || gScreenToDisplay != DISPLAY_MAIN
+            || (gScreenToDisplay != DISPLAY_MAIN && !QM_POWERSAVE_OK())
 #ifdef ENABLE_FMRADIO
             || gFmRadioMode
 #endif
@@ -1405,12 +1438,16 @@ void APP_TimeSlice10ms(void)
 
     // Skipping authentic device checks
 
+#ifdef ENABLE_QUICKMENU
+    QUICKMENU_TimeSlice10ms();   // SOS-Ruf (Morse-Takt)
+#endif
+
 #ifdef ENABLE_FMRADIO
     if (gFmRadioMode && gFmRadioCountdown_500ms > 0)   // 1of11
         return;
 #endif
 
-#if !defined(ENABLE_FEAT_F4HWN) || defined(ENABLE_FEAT_F4HWN_RESCUE_OPS)
+#if !defined(ENABLE_FEAT_F4HWN) || defined(ENABLE_FEAT_F4HWN_RESCUE_OPS) || defined(ENABLE_QUICKMENU)
     #ifdef ENABLE_FLASHLIGHT
         FlashlightTimeSlice();
     #endif
@@ -1706,7 +1743,7 @@ void APP_TimeSlice500ms(void)
 #endif
     ) {
         if (gEeprom.AUTO_KEYPAD_LOCK && gKeyLockCountdown > 0 && !gDTMF_InputMode
-            && gScreenToDisplay != DISPLAY_MENU && --gKeyLockCountdown == 0)
+            && gScreenToDisplay != DISPLAY_MENU && !QM_NO_AUTOLOCK() && --gKeyLockCountdown == 0)
         {
             gEeprom.KEY_LOCK = true;     // lock the keyboard
             gUpdateStatus = true;            // lock symbol needs showing
@@ -1811,7 +1848,7 @@ void APP_TimeSlice500ms(void)
 }
 
 #if defined(ENABLE_ALARM) || defined(ENABLE_TX1750)
-static void ALARM_Off(void)
+void ALARM_Off(void)
 {
     AUDIO_AudioPathOff();
     gEnableSpeaker = false;
@@ -1830,7 +1867,7 @@ static void ALARM_Off(void)
 
     RADIO_SetupRegisters(true);
 
-    if (gScreenToDisplay != DISPLAY_MENU)     // 1of11 .. don't close the menu
+    if (!GUI_IS_MENU_SCREEN())     // 1of11 .. don't close the menu
         gRequestDisplayScreen = DISPLAY_MAIN;
 }
 #endif
@@ -2186,7 +2223,7 @@ Skip:
         else { // this is probably so settings are not saved when up/down button is held and save is postponed to btn release
             flagSaveChannel = gRequestSaveChannel;
 
-            if (gRequestDisplayScreen == DISPLAY_INVALID)
+            if (gRequestDisplayScreen == DISPLAY_INVALID && !QM_KEEP_SCREEN())
                 gRequestDisplayScreen = DISPLAY_MAIN;
         }
 
@@ -2201,7 +2238,7 @@ Skip:
         else
             RADIO_ConfigureChannel(gEeprom.TX_VFO, gVfoConfigureMode);
 
-        if (gRequestDisplayScreen == DISPLAY_INVALID)
+        if (gRequestDisplayScreen == DISPLAY_INVALID && !QM_KEEP_SCREEN())
             gRequestDisplayScreen = DISPLAY_MAIN;
 
         gFlagReconfigureVfos = true;

@@ -69,6 +69,10 @@ ENABLE_FEAT_F4HWN_GMRS_FRS_MURS	?= 0
 ENABLE_FEAT_F4HWN_CA            ?= 1
 ENABLE_FEAT_F4HWN_DEBUG         ?= 0
 
+# ---- SCHNELLWAHL (Radio / Flugzeug / Amateurfunk / SOS News) ----
+ENABLE_QUICKMENU                ?= 0
+ENABLE_SAMIR_LOGO               ?= 0
+
 # ---- DEBUGGING ----
 ENABLE_AM_FIX_SHOW_DATA         ?= 0
 ENABLE_AGC_SHOW_DATA            ?= 0
@@ -161,6 +165,10 @@ endif
 OBJS += app/generic.o
 OBJS += app/main.o
 OBJS += app/menu.o
+ifeq ($(ENABLE_QUICKMENU),1)
+	OBJS += app/quickmenu.o
+	OBJS += ui/quickmenu.o
+endif
 ifeq ($(ENABLE_SPECTRUM), 1)
 OBJS += app/spectrum.o
 endif
@@ -326,6 +334,12 @@ ifeq ($(ENABLE_AIRCOPY),1)
 endif
 ifeq ($(ENABLE_FMRADIO),1)
 	CFLAGS += -DENABLE_FMRADIO
+endif
+ifeq ($(ENABLE_QUICKMENU),1)
+	CFLAGS += -DENABLE_QUICKMENU
+endif
+ifeq ($(ENABLE_SAMIR_LOGO),1)
+	CFLAGS += -DENABLE_SAMIR_LOGO
 endif
 ifeq ($(ENABLE_UART),1)
 	CFLAGS += -DENABLE_UART
